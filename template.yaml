@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sample-redirect
+
+  Sample SAM Template for sample-redirect
+  
+
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  RedirectHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Domain:
+        DomainName: www.oldsite.eu
+        CertificateArn:  #Your ACM certificate for the domain
+        EndpointConfiguration: REGIONAL
+        Route53:
+          HostedZoneId:  #Your hosted zone id for the domain name
+      AccessLogSettings:
+        DestinationArn: !GetAtt AccessLogs.Arn
+        Format: $context.requestId
+
+
+  AccessLogs:
+    Type: AWS::Logs::LogGroup
+
+  RedirectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: redirect/
+      Handler: app.lambdaHandler
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      Events:
+        Redirect:
+          Type: HttpApi 
+          Properties:
+            ApiId: !Ref RedirectHttpApi
+            Path: /{proxy+}
+            Method: any
+    Metadata: # Manage esbuild properties
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+Outputs:
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Redirect function"
+    Value: 
+      Fn::Sub: 'https://${RedirectHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/'
+  HelloWorldFunction:
+    Description: "Rediect Lambda Function ARN"
+    Value: !GetAtt RedirectFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Rediect function"
+    Value: !GetAtt RedirectFunctionRole.Arn
